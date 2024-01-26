@@ -1,0 +1,96 @@
+#Model Training
+from sklearn.model_selection import train_test_split, GridSearchCV
+
+df = df2.join(df1_imputed)
+X = df.drop(['Customer Status'], axis=1)
+y = df.loc[:, 'Customer Status'].values
+
+# Split Data into training and testing
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+#Scalling
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# One Class Support Vector Machine
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.covariance import EllipticEnvelope
+from sklearn.svm import SVC, OneClassSVM
+
+ocsvm = OneClassSVM(nu=0.05, kernel='rbf', gamma='auto')
+y_train_pred = ocsvm.fit_predict(X_train_scaled)
+
+# removing outliers(select only the normal data)
+mask =y_train_pred !=-1
+X_train_scaled, y_train = X_train_scaled[mask], y_train[mask]
+
+
+# Random Forest Classifier
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
+
+# Determining best parameters
+param_grid = {
+    'n_estimators': [10,30, 50,70, 100],
+    'max_depth': [10, 20, 30],
+    'min_samples_split': [5, 10],
+    'min_samples_leaf': [2, 4],
+}
+
+
+rfc = RandomForestClassifier(random_state=42)
+grid_search_RF = GridSearchCV(estimator=rfc, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2, scoring='accuracy')
+
+
+# Fit the grid search to the data
+grid_search_RF.fit(X_train_scaled, y_train)
+
+# Get the best parameters and the best score
+best_params = grid_search_RF.best_params_
+best_score = grid_search_RF.best_score_
+
+print(f"Best parameters in RF: {best_params}")
+print(f"Best cross-validation score in RF: {best_score}")
+
+#Evaluation of model performance
+
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.decomposition import PCA
+from time import perf_counter
+
+best_model_RF = grid_search_RF.best_estimator_
+start_tra = perf_counter()
+best_model_RF.fit(X_train_scaled, y_train)
+end_tra = perf_counter()
+
+# print classification report and confusion matrix
+
+def get_metrics(y_test, y_predicted):
+    accuracy = accuracy_score(y_test, y_predicted)
+    precision = precision_score(y_test, y_predicted, average='weighted')
+    recall = recall_score(y_test, y_predicted, average='weighted')
+    f1 = f1_score(y_test, y_predicted, average='weighted')
+    return accuracy, precision, recall, f1
+y_pred = best_model_RF.predict(X_test_scaled)
+
+print("Confusion matrix\n")
+print(pd.crosstab(pd.Series(y_test, name='Actual'), pd.Series(y_pred, name='Predicted')))
+
+accuracy, precision, recall, f1 = get_metrics(y_test, y_pred)
+
+print("accuracy = %.3f \nprecision = %.3f \nrecall = %.3f \nf1 = %.3f" % (accuracy, precision, recall, f1))
+
+
+# Accuracy on Train
+train_score_RF = round(best_model_RF.score(X_train_scaled, y_train), 2)
+print("The Training Accuracy is: ", train_score_RF)
+
+# Accuracy on Test
+test_score_RF = round(best_model_RF.score(X_test_scaled, y_test), 2)
+print("The Testing Accuracy is: ", test_score_RF)
+
+# Training time
+train_time_RF = round((end_tra-start_tra), 4)
+print(f'train phase time: ', train_time_RF)
