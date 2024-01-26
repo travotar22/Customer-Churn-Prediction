@@ -1,0 +1,169 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import seaborn as sns
+import missingno as msno
+import numpy as np
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.impute import KNNImputer
+
+
+data = pd.read_csv('telecom_customer_churn.csv')
+
+print(data.shape)
+print(data.dtypes)
+print(data.info())
+
+# Dropping unwanted features 
+
+data = data.drop(['Customer ID', 'City', 'Latitude', 'Longitude' ,'Churn Category', 'Churn Reason'], axis=1)
+data.duplicated().sum()
+
+df1 = data.select_dtypes(exclude='number')
+df1.describe().T
+
+
+
+# Plotting the pie chart
+
+num_rows = 5
+num_cols = 4
+fig, axes = plt.subplots(num_rows, num_cols, figsize=(20, 30))
+
+for i, column in enumerate(df1.columns):
+    categories = df1[column].value_counts()
+
+    ax = axes[i // num_cols, i % num_cols]
+
+    ax.pie(categories, labels=categories.index, autopct='%1.1f%%', shadow=True, startangle=140)
+    ax.axis('equal')
+    ax.set_title(f'Distribution of {column}', fontsize=14)
+
+
+# Add text annotations for value count and sum
+
+    total = categories.values.sum()
+    sum_text = f'Sum: {total}'
+    ax.text(0, -1.2 - len(categories)*0.2, sum_text, ha='center', fontsize=12)
+
+    for j, percentage in enumerate(categories):
+        percent_text = f'{percentage} ({categories.index[j]})'
+        ax.text(0, -1.2 - j*0.2, percent_text, ha='center', fontsize=12)
+
+plt.tight_layout()
+plt.show()
+
+
+# Check if df1 has any numerical columns
+
+
+
+print(f"null values in nominal features:\n{df1.isna().sum()}")
+
+
+numerical_cols = df1.select_dtypes(include=[np.number]).columns.tolist()
+if numerical_cols:
+    print(f"Numerical columns in the DataFrame: {numerical_cols}")
+else:
+    print("The DataFrame does not have any numerical columns.")
+
+# Check if numerical columns contain non-NaN values
+for col in numerical_cols:
+    if df1[col].isna().all():
+        print(f"All values in the column '{col}' are NaN.")
+    else:
+        print(f"The column '{col}' contains non-NaN values.")
+msno.matrix(df1)
+
+
+#filling null values
+df1['Internet Type'] = df1['Internet Type'].apply(lambda x: 'None' if pd.isnull(x) else x)
+
+column_name = ['Online Security', 'Online Backup', 'Device Protection Plan', 'Premium Tech Support',
+               'Streaming TV', 'Streaming Movies', 'Streaming Music', 'Unlimited Data']
+for column in column_name:
+  df1[column] = df1[column].apply(lambda x: 'No' if pd.isnull(x) else x)
+msno.matrix(df1)
+
+
+
+# first step:
+conversion_dict = {"Yes": 1, "No": 0}
+df1['Multiple Lines'] = df1['Multiple Lines'].map(conversion_dict)
+
+# second step: labeling the target by using LabelEncoder
+label_encoder = LabelEncoder()
+df1['Customer Status'] = label_encoder.fit_transform(df1['Customer Status'])
+
+# third step: using pd.get_dummies for other features
+df1 = pd.get_dummies(df1, drop_first=True)
+# the KNNImputer
+imputer = KNNImputer(n_neighbors=5)
+imputed_data = imputer.fit_transform(df1)
+imputed_data = np.round(imputed_data)
+
+# keeping the DataFrame format:
+df1_imputed = pd.DataFrame(data=imputed_data, columns=df1.columns)
+
+# checking missing value
+msno.matrix(df1_imputed)
+df1_imputed['Multiple Lines'].value_counts()
+
+#Extraction and visualization of numerical features
+
+df2 = data.select_dtypes(include='number')
+df2.describe().T
+
+# Plotting non numerical features - histrograms
+
+column_name = ['Age', 'Tenure in Months', 'Avg Monthly GB Download', 'Total Charges', 'Total Revenue']
+for column in column_name:
+  v = sns.FacetGrid(data, col='Customer Status')
+  v.map(plt.hist, column, bins=30, alpha=0.5, color='g', edgecolor='black', density=True)
+  plt.show()
+
+
+#column_name = ['Age', 'Total Charges']
+#indices_name = ['Gender', 'Married', 'Offer', 'Phone Service', 'Internet Service', 'Contract', 'Payment Method']
+#for column in column_name:
+#    for k in indices_name:
+#      v = sns.FacetGrid(data, col='Customer Status', row=k, margin_titles=True)
+#      v.map(plt.hist, column, alpha=0.5, bins=30)
+#      plt.show()
+
+
+# Distribution plot
+fig, axs = plt.subplots(ncols=5, nrows=3, figsize=(25,15))
+index = 0
+axs = axs.flatten()
+for k, v in df2.items():
+  sns.histplot(v, ax=axs[index])
+  index += 1
+plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=5)
+plt.show()
+
+#Heat map
+corr_mat = df2.corr()
+plt.figure(figsize=(10, 8))
+sns.heatmap(corr_mat.abs(), annot=True)
+
+for x in range(len(df2.columns)):
+  corr_mat.iloc[x,x] = 0.0
+corr_mat.abs().idxmax()
+
+#Since Total Charges and Total Revenue have a high correlation
+
+df2 = df2.drop(['Total Revenue'],axis=1)
+
+#Filling Null values in numerical features
+msno.matrix(df2)
+print("null values in numerical features:\n",df2.isna().sum())
+
+
+#filling null values
+column_name = ['Avg Monthly Long Distance Charges', 'Avg Monthly GB Download']
+for column in column_name:
+  df2[column] = df2[column].apply(lambda x: 0 if pd.isnull(x) else x)
+# checking null values
+msno.matrix(df2)
+print("null values in numerical features:\n",df2.isna().sum())
