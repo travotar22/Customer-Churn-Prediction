@@ -1,0 +1,2 @@
+# Customer-Churn-Prediction
+This project aims to analyze the Customer Churn dataset, which contains data on 7,043 customers from a Telecommunications company in California. The dataset includes various features such as gender, tenure, monthly charges, and churn status. The goal is to build a Machine learning model that can accurately predict whether a customer will churn or not, based on the available features. The model is trained and tested on the dataset, and its performance is evaluated using various metrics such as accuracy, precision, recall, and F1-score.
